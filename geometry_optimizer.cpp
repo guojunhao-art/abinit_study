@@ -23,6 +23,8 @@ bool is_finite_vector(const Eigen::VectorXd& v) {
     return true;
 }
 
+
+
 Eigen::VectorXd limit_step(const Eigen::VectorXd& step, double max_step) {
     if (max_step <= 0.0) return step;
     const double max_disp = max_abs_component(step);
@@ -31,6 +33,24 @@ Eigen::VectorXd limit_step(const Eigen::VectorXd& step, double max_step) {
 }
 
 }  // namespace
+
+Eigen::VectorXd
+flatten_atom_gradient_rowwise(const Eigen::MatrixXd& grad) {
+    if (grad.cols() != 3) {
+        throw std::runtime_error("flatten_atom_gradient_rowwise: gradient matrix must have 3 columns");
+    }
+
+    const int natom = static_cast<int>(grad.rows());
+    Eigen::VectorXd out = Eigen::VectorXd::Zero(3 * natom);
+
+    for (int A = 0; A < natom; ++A) {
+        out(3 * A + 0) = grad(A, 0);
+        out(3 * A + 1) = grad(A, 1);
+        out(3 * A + 2) = grad(A, 2);
+    }
+
+    return out;
+}
 
 Eigen::VectorXd finite_difference_gradient(const Eigen::VectorXd& x,
                                            const EnergyFunction& energy,
@@ -63,9 +83,36 @@ Eigen::VectorXd finite_difference_gradient(const Eigen::VectorXd& x,
     return grad;
 }
 
+Eigen::VectorXd evaluate_gradient(const Eigen::VectorXd& x,
+                                  const EnergyFunction& energy,
+                                  const GradientFunction& gradient,
+                                  double fd_step,
+                                  const Eigen::MatrixXd* C_guess) {
+    if (gradient) {
+        // Analytic gradient path.
+        // 通常这里不需要 C_out，因为当前几何的 C 已经由 energy(x,...,&C_current)
+        // 得到。为了避免解析梯度再覆盖 C_current，这里传 nullptr。
+        Eigen::VectorXd g = gradient(x, C_guess, nullptr);
+
+        if (g.size() != x.size()) {
+            throw std::runtime_error("evaluate_gradient: analytic gradient dimension mismatch");
+        }
+
+        if (!g.allFinite()) {
+            throw std::runtime_error("evaluate_gradient: non-finite analytic gradient");
+        }
+
+        return g;
+    }
+
+    // Fallback: old numerical gradient path.
+    return finite_difference_gradient(x, energy, fd_step, C_guess);
+}
+
 GeometryResult optimize_bfgs(const Eigen::VectorXd& x0,
                              const EnergyFunction& energy,
-                             const GeometryOptions& options) {
+                             const GeometryOptions& options,
+                             const GradientFunction& gradient) {
     if (x0.size() == 0) throw std::runtime_error("empty coordinate vector");
     if (!is_finite_vector(x0)) throw std::runtime_error("non-finite initial coordinates");
 
@@ -78,8 +125,8 @@ GeometryResult optimize_bfgs(const Eigen::VectorXd& x0,
     double e = energy(x, nullptr, &C_current);
     if (!std::isfinite(e)) throw std::runtime_error("non-finite initial energy");
 
-    Eigen::VectorXd g = finite_difference_gradient(
-        x, energy, options.finite_difference_step,
+    Eigen::VectorXd g = evaluate_gradient(
+        x, energy, gradient, options.finite_difference_step,
         C_current.size() > 0 ? &C_current : nullptr);
     if (!is_finite_vector(g)) throw std::runtime_error("non-finite initial gradient");
 
@@ -185,8 +232,8 @@ GeometryResult optimize_bfgs(const Eigen::VectorXd& x0,
             Hinv.setIdentity();
         }
 
-        Eigen::VectorXd g_trial = finite_difference_gradient(
-            x_trial, energy, options.finite_difference_step,
+        Eigen::VectorXd g_trial = evaluate_gradient(
+            x_trial, energy, gradient, options.finite_difference_step,
             C_trial.size() > 0 ? &C_trial : nullptr);
         if (!is_finite_vector(g_trial)) {
             throw std::runtime_error("non-finite gradient after geometry step");

@@ -31,6 +31,10 @@ using EnergyFunction = std::function<double(const Eigen::VectorXd&,
                                             const Eigen::MatrixXd* C_guess,
                                             Eigen::MatrixXd* C_out)>;
 
+using GradientFunction = std::function<Eigen::VectorXd(const Eigen::VectorXd& x,
+                                  const Eigen::MatrixXd* C_guess,
+                                  Eigen::MatrixXd* C_out)>;
+
 Eigen::VectorXd finite_difference_gradient(const Eigen::VectorXd& x,
                                            const EnergyFunction& energy,
                                            double h,
@@ -38,6 +42,11 @@ Eigen::VectorXd finite_difference_gradient(const Eigen::VectorXd& x,
 
 GeometryResult optimize_bfgs(const Eigen::VectorXd& x0,
                              const EnergyFunction& energy,
-                             const GeometryOptions& options = GeometryOptions{});
+                             const GeometryOptions& options = GeometryOptions{},
+                             const GradientFunction& gradient = nullptr);
+
+Eigen::VectorXd
+flatten_atom_gradient_rowwise(const Eigen::MatrixXd& grad);
+
 
 }  // namespace miniqc
