@@ -52,6 +52,7 @@ set(MINIQC_SOURCES
     fci.cpp
     dft_grid.cpp
     dft_lda.cpp
+    xc_functional.cpp
 )
 
 add_executable(RHF ${MINIQC_SOURCES})
