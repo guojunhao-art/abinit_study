@@ -91,6 +91,24 @@ target_link_libraries(test_xc_functional PRIVATE
     ${LIBXC_LIBRARY}
 )
 
+add_executable(test_jk_builders
+    tests/test_jk_builders.cpp
+)
+
+target_include_directories(test_jk_builders PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${LIBINT2_INCLUDE_DIR}
+)
+
+target_link_libraries(test_jk_builders PRIVATE
+    Eigen3::Eigen
+    ${LIBINT2_LIBRARY}
+)
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(test_jk_builders PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
 if(MINIQC_BUILD_TESTING)
     include(CTest)
     if(BUILD_TESTING)
@@ -108,6 +126,15 @@ if(MINIQC_BUILD_TESTING)
         )
         set_tests_properties(miniqc_xc_functional_smoke PROPERTIES
             PASS_REGULAR_EXPRESSION "XCFunctional smoke test passed"
+        )
+
+        add_test(
+            NAME miniqc_jk_builder_consistency
+            COMMAND $<TARGET_FILE:test_jk_builders>
+        )
+        set_tests_properties(miniqc_jk_builder_consistency PROPERTIES
+            ENVIRONMENT "OMP_NUM_THREADS=1"
+            PASS_REGULAR_EXPRESSION "J/K builder consistency test passed"
         )
 
         add_test(
