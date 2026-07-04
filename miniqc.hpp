@@ -14,5 +14,6 @@
 #include "rhf.hpp"
 #include "scf_diis.hpp"
 #include "two_body_fock.hpp"
+#include "xc_evaluator.hpp"
 #include "xc_functional.hpp"
 #include "xyz_io.hpp"
