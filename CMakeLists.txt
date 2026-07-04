@@ -96,5 +96,15 @@ if(MINIQC_BUILD_TESTING)
             ENVIRONMENT "OMP_NUM_THREADS=1"
             PASS_REGULAR_EXPRESSION "E_total[ ]*=[ ]*-1\\.116"
         )
+
+        add_test(
+            NAME miniqc_h2_opt_analytic_sto3g
+            COMMAND $<TARGET_FILE:RHF> ${CMAKE_CURRENT_SOURCE_DIR}/tests/h2_opt_analytic_sto3g.in
+        )
+        set_tests_properties(miniqc_h2_opt_analytic_sto3g PROPERTIES
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            ENVIRONMENT "OMP_NUM_THREADS=1"
+            PASS_REGULAR_EXPRESSION "Geometry optimization result"
+        )
     endif()
 endif()
