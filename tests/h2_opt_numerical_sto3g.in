@@ -1,0 +1,29 @@
+[molecule]
+basis = sto-3g
+xyz = h2_1p4_bohr.xyz
+unit = bohr
+charge = 0
+multiplicity = 1
+
+[calculation]
+job = optimize
+
+[output]
+print_orbitals = false
+print_gradient = false
+print_matrices = false
+
+[scf]
+verbose = false
+max_iter = 128
+
+[geometry]
+gradient = numerical
+output = h2_opt_numerical.xyz
+max_steps = 30
+finite_difference_step = 1.0e-3
+max_step = 0.15
+energy_conv = 1.0e-7
+max_force_conv = 4.5e-4
+rms_force_conv = 3.0e-4
+verbose = false
