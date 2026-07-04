@@ -52,6 +52,7 @@ set(MINIQC_SOURCES
     fci.cpp
     dft_grid.cpp
     dft_lda.cpp
+    dft_xc_matrix.cpp
     xc_functional.cpp
     xc_evaluator.cpp
 )
@@ -107,6 +108,31 @@ target_link_libraries(test_xc_evaluator PRIVATE
     ${LIBXC_LIBRARY}
 )
 
+add_executable(test_dft_xc_matrix
+    tests/test_dft_xc_matrix.cpp
+    dft_grid.cpp
+    dft_lda.cpp
+    dft_xc_matrix.cpp
+    xc_functional.cpp
+    xc_evaluator.cpp
+)
+
+target_include_directories(test_dft_xc_matrix PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${LIBINT2_INCLUDE_DIR}
+    ${LIBXC_INCLUDE_DIR}
+)
+
+target_link_libraries(test_dft_xc_matrix PRIVATE
+    Eigen3::Eigen
+    ${LIBINT2_LIBRARY}
+    ${LIBXC_LIBRARY}
+)
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(test_dft_xc_matrix PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
 add_executable(test_jk_builders
     tests/test_jk_builders.cpp
 )
@@ -150,6 +176,15 @@ if(MINIQC_BUILD_TESTING)
         )
         set_tests_properties(miniqc_xc_evaluator_smoke PROPERTIES
             PASS_REGULAR_EXPRESSION "XCEvaluator smoke test passed"
+        )
+
+        add_test(
+            NAME miniqc_dft_xc_matrix_builder
+            COMMAND $<TARGET_FILE:test_dft_xc_matrix>
+        )
+        set_tests_properties(miniqc_dft_xc_matrix_builder PROPERTIES
+            ENVIRONMENT "OMP_NUM_THREADS=1"
+            PASS_REGULAR_EXPRESSION "DFT XC matrix builder test passed"
         )
 
         add_test(
