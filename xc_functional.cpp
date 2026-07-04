@@ -7,6 +7,7 @@
 #include <cctype>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 
 namespace miniqc::xc {
 
