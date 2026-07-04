@@ -1,0 +1,35 @@
+# Example miniqc configuration: RHF analytic-gradient geometry optimization.
+
+[molecule]
+basis = 6-311g**
+xyz = water.xyz
+unit = angstrom
+charge = 0
+multiplicity = 1
+
+[calculation]
+job = optimize
+mp2 = false
+ci = none
+dft = false
+
+[scf]
+max_iter = 128
+e_conv = 1.0e-10
+d_conv = 1.0e-8
+use_diis = true
+diis_start = 2
+diis_max_vec = 8
+verbose = false
+
+[geometry]
+# Choose analytic or numerical.
+gradient = analytic
+output = water_opt.xyz
+max_steps = 50
+finite_difference_step = 1.0e-3
+max_step = 0.20
+energy_conv = 1.0e-7
+max_force_conv = 4.5e-4
+rms_force_conv = 3.0e-4
+verbose = true
