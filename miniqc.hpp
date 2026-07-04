@@ -8,6 +8,7 @@
 
 #include "basis_context.hpp"
 #include "core_molecule.hpp"
+#include "dft_xc_matrix.hpp"
 #include "linalg_utils.hpp"
 #include "one_body_integrals.hpp"
 #include "periodic_table.hpp"
