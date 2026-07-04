@@ -53,6 +53,7 @@ set(MINIQC_SOURCES
     dft_grid.cpp
     dft_lda.cpp
     xc_functional.cpp
+    xc_evaluator.cpp
 )
 
 add_executable(RHF ${MINIQC_SOURCES})
@@ -91,6 +92,21 @@ target_link_libraries(test_xc_functional PRIVATE
     ${LIBXC_LIBRARY}
 )
 
+add_executable(test_xc_evaluator
+    tests/test_xc_evaluator.cpp
+    xc_functional.cpp
+    xc_evaluator.cpp
+)
+
+target_include_directories(test_xc_evaluator PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${LIBXC_INCLUDE_DIR}
+)
+
+target_link_libraries(test_xc_evaluator PRIVATE
+    ${LIBXC_LIBRARY}
+)
+
 add_executable(test_jk_builders
     tests/test_jk_builders.cpp
 )
@@ -126,6 +142,14 @@ if(MINIQC_BUILD_TESTING)
         )
         set_tests_properties(miniqc_xc_functional_smoke PROPERTIES
             PASS_REGULAR_EXPRESSION "XCFunctional smoke test passed"
+        )
+
+        add_test(
+            NAME miniqc_xc_evaluator_smoke
+            COMMAND $<TARGET_FILE:test_xc_evaluator>
+        )
+        set_tests_properties(miniqc_xc_evaluator_smoke PROPERTIES
+            PASS_REGULAR_EXPRESSION "XCEvaluator smoke test passed"
         )
 
         add_test(
