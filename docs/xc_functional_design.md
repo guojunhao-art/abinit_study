@@ -77,7 +77,14 @@ For a full-range hybrid functional:
 F = H^{core} + J[D] + V_{xc}[D] - a_x K[D].
 ```
 
-So the next code-level step is to split the current direct two-electron builder into explicit `J` and `K` builders.  RHF can still use
+The direct two-electron helper layer now exposes explicit `J` and `K` builders:
+
+```cpp
+build_j_direct(basis, D);
+build_k_direct(basis, D);
+```
+
+RHF can still use
 
 ```math
 G^{RHF} = J - \frac{1}{2}K.
@@ -88,6 +95,8 @@ Hybrid DFT will use
 ```math
 G^{hybrid} = J - a_xK.
 ```
+
+The old `build_g_direct()` RHF helper is still kept because it computes `J - 1/2 K` in one shell loop and avoids slowing down existing RHF calculations.
 
 ## M06-2X and tau
 
@@ -116,7 +125,6 @@ The current RKS code still supports only the old matrix builder path:
 
 B3LYP, PBE0, and M06-2X are now describable by `XCFunctional`, but they still require the next implementation steps:
 
-1. Add a direct `K[D]` builder.
-2. Refactor the RKS driver to assemble hybrid generalized-KS Fock matrices.
-3. Add an `XCEvaluator` that handles LDA/GGA/meta-GGA ingredients uniformly.
-4. Add tau and vtau terms for meta-GGA functionals.
+1. Refactor the RKS driver to assemble hybrid generalized-KS Fock matrices.
+2. Add an `XCEvaluator` that handles LDA/GGA/meta-GGA ingredients uniformly.
+3. Add tau and vtau terms for meta-GGA functionals.
