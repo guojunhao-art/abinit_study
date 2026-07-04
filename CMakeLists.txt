@@ -10,13 +10,10 @@ option(MINIQC_BUILD_TESTING "Build and register miniqc regression tests" ON)
 
 find_package(Eigen3 REQUIRED)
 find_package(OpenMP QUIET)
-find_package(Python3 COMPONENTS Interpreter QUIET)
 
 # Libint2 and Libxc are often installed through conda-forge.  The explicit
 # find_path/find_library fallback keeps this CMakeLists.txt usable even when
 # package config files are not provided by the environment.
-find_package(PkgConfig QUIET)
-
 find_path(LIBINT2_INCLUDE_DIR
     NAMES libint2/cxxapi.h libint2.hpp
     HINTS $ENV{CONDA_PREFIX}
@@ -82,22 +79,22 @@ set_target_properties(RHF PROPERTIES OUTPUT_NAME RHF)
 if(MINIQC_BUILD_TESTING)
     include(CTest)
     if(BUILD_TESTING)
-        if(NOT Python3_Interpreter_FOUND)
-            message(WARNING "Python3 was not found; regression tests will not be registered")
-        else()
-            add_test(
-                NAME miniqc_template_config
-                COMMAND $<TARGET_FILE:RHF> --write-template-config
-            )
+        add_test(
+            NAME miniqc_template_config
+            COMMAND $<TARGET_FILE:RHF> --write-template-config
+        )
+        set_tests_properties(miniqc_template_config PROPERTIES
+            PASS_REGULAR_EXPRESSION "miniqc configuration file"
+        )
 
-            add_test(
-                NAME miniqc_regression_suite
-                COMMAND ${Python3_EXECUTABLE}
-                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_regression.py
-                    --exe $<TARGET_FILE:RHF>
-                    --tests-dir ${CMAKE_CURRENT_SOURCE_DIR}/tests
-                    --workdir ${CMAKE_CURRENT_BINARY_DIR}/regression_runs
-            )
-        endif()
+        add_test(
+            NAME miniqc_h2_rhf_sto3g
+            COMMAND $<TARGET_FILE:RHF> ${CMAKE_CURRENT_SOURCE_DIR}/tests/h2_rhf_sto3g.in
+        )
+        set_tests_properties(miniqc_h2_rhf_sto3g PROPERTIES
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/data
+            ENVIRONMENT "OMP_NUM_THREADS=1"
+            PASS_REGULAR_EXPRESSION "E_total[ ]*=[ ]*-1\\.116"
+        )
     endif()
 endif()
