@@ -52,6 +52,7 @@ set(MINIQC_SOURCES
     fci.cpp
     dft_grid.cpp
     dft_lda.cpp
+    xc_functional.cpp
 )
 
 add_executable(RHF ${MINIQC_SOURCES})
@@ -76,6 +77,20 @@ endif()
 # tests and old shell commands can use the same program name.
 set_target_properties(RHF PROPERTIES OUTPUT_NAME RHF)
 
+add_executable(test_xc_functional
+    tests/test_xc_functional.cpp
+    xc_functional.cpp
+)
+
+target_include_directories(test_xc_functional PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${LIBXC_INCLUDE_DIR}
+)
+
+target_link_libraries(test_xc_functional PRIVATE
+    ${LIBXC_LIBRARY}
+)
+
 if(MINIQC_BUILD_TESTING)
     include(CTest)
     if(BUILD_TESTING)
@@ -85,6 +100,14 @@ if(MINIQC_BUILD_TESTING)
         )
         set_tests_properties(miniqc_template_config PROPERTIES
             PASS_REGULAR_EXPRESSION "miniqc configuration file"
+        )
+
+        add_test(
+            NAME miniqc_xc_functional_smoke
+            COMMAND $<TARGET_FILE:test_xc_functional>
+        )
+        set_tests_properties(miniqc_xc_functional_smoke PROPERTIES
+            PASS_REGULAR_EXPRESSION "XCFunctional smoke test passed"
         )
 
         add_test(
