@@ -13,6 +13,7 @@
 #include "one_body_integrals.hpp"
 #include "periodic_table.hpp"
 #include "rhf.hpp"
+#include "rks_xc.hpp"
 #include "scf_diis.hpp"
 #include "two_body_fock.hpp"
 #include "xc_evaluator.hpp"

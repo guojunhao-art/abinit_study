@@ -53,6 +53,7 @@ set(MINIQC_SOURCES
     dft_grid.cpp
     dft_lda.cpp
     dft_xc_matrix.cpp
+    rks_xc.cpp
     xc_functional.cpp
     xc_evaluator.cpp
 )
@@ -133,6 +134,32 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(test_dft_xc_matrix PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
+add_executable(test_rks_xc_driver
+    tests/test_rks_xc_driver.cpp
+    dft_grid.cpp
+    dft_lda.cpp
+    dft_xc_matrix.cpp
+    rks_xc.cpp
+    xc_functional.cpp
+    xc_evaluator.cpp
+)
+
+target_include_directories(test_rks_xc_driver PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${LIBINT2_INCLUDE_DIR}
+    ${LIBXC_INCLUDE_DIR}
+)
+
+target_link_libraries(test_rks_xc_driver PRIVATE
+    Eigen3::Eigen
+    ${LIBINT2_LIBRARY}
+    ${LIBXC_LIBRARY}
+)
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(test_rks_xc_driver PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
 add_executable(test_jk_builders
     tests/test_jk_builders.cpp
 )
@@ -185,6 +212,15 @@ if(MINIQC_BUILD_TESTING)
         set_tests_properties(miniqc_dft_xc_matrix_builder PROPERTIES
             ENVIRONMENT "OMP_NUM_THREADS=1"
             PASS_REGULAR_EXPRESSION "DFT XC matrix builder test passed"
+        )
+
+        add_test(
+            NAME miniqc_rks_xc_driver
+            COMMAND $<TARGET_FILE:test_rks_xc_driver>
+        )
+        set_tests_properties(miniqc_rks_xc_driver PROPERTIES
+            ENVIRONMENT "OMP_NUM_THREADS=1"
+            PASS_REGULAR_EXPRESSION "Total-XC RKS driver smoke test passed"
         )
 
         add_test(

@@ -106,9 +106,9 @@ inline Eigen::MatrixXd build_j_direct(const libint2::BasisSet& basis,
 // Exact-exchange matrix:
 //   K_mn = sum_ls D_ls (ml|ns)
 //
-// D is assumed to be the same spin-summed closed-shell density used elsewhere
-// in this educational code.  Hybrid RKS will use this as
-//   F = Hcore + J + Vxc - a_x K.
+// D is the same spin-summed closed-shell density used elsewhere in this code:
+//   D_mn = 2 sum_i C_mi C_ni.
+// With this convention, full HF exchange in the Fock matrix is -0.5 K, not -K.
 inline Eigen::MatrixXd build_k_direct(const libint2::BasisSet& basis,
                                       const Eigen::MatrixXd& D) {
     check_density_matrix_shape(basis, D, "build_k_direct");
@@ -190,13 +190,27 @@ inline Eigen::MatrixXd build_rhf_g_from_jk(const Eigen::MatrixXd& J,
     return J - 0.5 * K;
 }
 
+// Hybrid two-electron Fock contribution for the spin-summed closed-shell
+// density convention used here:
+//   G_hybrid = J - 0.5 * a_x * K
+// For a_x = 1 this exactly reduces to the RHF two-electron contribution.
 inline Eigen::MatrixXd build_hybrid_g_from_jk(const Eigen::MatrixXd& J,
                                               const Eigen::MatrixXd& K,
                                               double exact_exchange_fraction) {
     if (J.rows() != K.rows() || J.cols() != K.cols()) {
         throw std::runtime_error("build_hybrid_g_from_jk: J/K dimension mismatch");
     }
-    return J - exact_exchange_fraction * K;
+    return J - 0.5 * exact_exchange_fraction * K;
+}
+
+inline double hybrid_exact_exchange_energy(const Eigen::MatrixXd& D,
+                                           const Eigen::MatrixXd& K,
+                                           double exact_exchange_fraction) {
+    if (D.rows() != K.rows() || D.cols() != K.cols()) {
+        throw std::runtime_error("hybrid_exact_exchange_energy: D/K dimension mismatch");
+    }
+    // E_x^HF[D] = -1/4 Tr[D K] for the spin-summed closed-shell D.
+    return -0.25 * exact_exchange_fraction * (D.array() * K.array()).sum();
 }
 
 // Direct closed-shell RHF two-electron Fock contribution:

@@ -30,21 +30,29 @@ The RHF two-electron contribution remains
 G^{RHF}=J-\frac{1}{2}K.
 ```
 
-A full-range hybrid DFT Fock contribution will use
+Because `D` is spin-summed, a full-range hybrid DFT Fock contribution uses
 
 ```math
-G^{hybrid}=J-a_xK,
+G^{hybrid}=J-\frac{1}{2}a_xK,
 ```
 
-so the generalized Kohn-Sham Fock matrix will become
+so the generalized Kohn-Sham Fock matrix becomes
 
 ```math
-F=H^{core}+J+V_{xc}-a_xK.
+F=H^{core}+J+V_{xc}-\frac{1}{2}a_xK.
 ```
+
+The exact-exchange energy contribution is
+
+```math
+E_x^{HF,hyb}=-\frac{1}{4}a_x\operatorname{Tr}[DK].
+```
+
+This convention is important: when `a_x = 1`, the hybrid Fock exchange term must reduce to the RHF exchange term `-1/2 K`.
 
 ## Code-level interface
 
-The new interface in `two_body_fock.hpp` is:
+The interface in `two_body_fock.hpp` is:
 
 ```cpp
 Eigen::MatrixXd build_j_direct(const libint2::BasisSet& basis,
@@ -59,6 +67,10 @@ Eigen::MatrixXd build_rhf_g_from_jk(const Eigen::MatrixXd& J,
 Eigen::MatrixXd build_hybrid_g_from_jk(const Eigen::MatrixXd& J,
                                        const Eigen::MatrixXd& K,
                                        double exact_exchange_fraction);
+
+double hybrid_exact_exchange_energy(const Eigen::MatrixXd& D,
+                                    const Eigen::MatrixXd& K,
+                                    double exact_exchange_fraction);
 ```
 
 The old `build_g_direct()` function is kept.  It still computes the RHF `J - 1/2 K` contribution in one pass, so existing RHF code does not slow down.
@@ -81,4 +93,4 @@ is useful for testing, but it evaluates two separate four-center integral contra
 build\_g\_direct(D) = build\_j\_direct(D) - \frac{1}{2}build\_k\_direct(D)
 ```
 
-for a small H2/STO-3G density matrix.
+for a small H2/STO-3G density matrix.  It also verifies that `build_hybrid_g_from_jk(J, K, 1.0)` reproduces the RHF two-electron contribution, which guards against accidentally using the wrong spin-density convention.

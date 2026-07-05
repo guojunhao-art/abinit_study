@@ -95,12 +95,12 @@ Rejected for now:
 
 This means the evaluator can already be used for PBE and the semilocal Libxc part of B3LYP/PBE0, but M06-2X still needs tau and vtau support before it can be used in the RKS matrix builder.
 
-## Next integration step
+## Hybrid Fock convention
 
-The next stage should replace the duplicated Libxc calls inside `dft_lda.cpp` with `evaluate_xc_block()` or with a grid-loop wrapper built on top of this evaluator.
-
-After that, the hybrid RKS Fock can be assembled as
+The code uses a spin-summed closed-shell density matrix.  Therefore the hybrid RKS Fock is assembled as
 
 ```math
-F = H^{core} + J + V_{xc} - a_xK.
+F = H^{core} + J + V_{xc} - \frac{1}{2}a_xK.
 ```
+
+The `XCEvaluator` supplies only the semilocal `Vxc` part; the exact-exchange `K` term is assembled by the RKS driver.
