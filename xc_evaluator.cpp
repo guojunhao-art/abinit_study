@@ -53,11 +53,11 @@ void validate_restricted_input(const XCFunctional& functional,
     if (functional.requirements.needs_sigma && input.sigma.size() != input.rho.size()) {
         throw std::runtime_error("evaluate_xc_block: sigma size does not match rho size");
     }
+    if (functional.requirements.needs_tau && input.tau.size() != input.rho.size()) {
+        throw std::runtime_error("evaluate_xc_block: tau size does not match rho size");
+    }
     if (functional.requirements.needs_laplacian) {
         throw std::runtime_error("evaluate_xc_block: laplacian-dependent functionals are not implemented yet");
-    }
-    if (functional.requirements.needs_tau) {
-        throw std::runtime_error("evaluate_xc_block: tau/meta-GGA functionals are not implemented yet");
     }
 }
 
@@ -96,6 +96,34 @@ void accumulate_gga_component(const XCComponent& component,
         output.exc[i] += component.scale * exc[i];
         output.vrho[i] += component.scale * vrho[i];
         output.vsigma[i] += component.scale * vsigma[i];
+    }
+}
+
+void accumulate_mgga_component(const XCComponent& component,
+                               const XCInputBlock& input,
+                               XCOutputBlock& output) {
+    const std::size_t n = input.size();
+    LibxcHandle handle(component.libxc_id, XC_UNPOLARIZED);
+
+    std::vector<double> exc(n, 0.0);
+    std::vector<double> vrho(n, 0.0);
+    std::vector<double> vsigma(n, 0.0);
+    std::vector<double> vlapl(n, 0.0);
+    std::vector<double> vtau(n, 0.0);
+    std::vector<double> lapl(n, 0.0);
+
+    const double* lapl_ptr = input.laplacian.empty() ? lapl.data() : input.laplacian.data();
+
+    xc_mgga_exc_vxc(handle.get(), static_cast<int>(n),
+                    input.rho.data(), input.sigma.data(), lapl_ptr, input.tau.data(),
+                    exc.data(), vrho.data(), vsigma.data(), vlapl.data(), vtau.data());
+
+    for (std::size_t i = 0; i < n; ++i) {
+        output.exc[i] += component.scale * exc[i];
+        output.vrho[i] += component.scale * vrho[i];
+        output.vsigma[i] += component.scale * vsigma[i];
+        output.vlaplacian[i] += component.scale * vlapl[i];
+        output.vtau[i] += component.scale * vtau[i];
     }
 }
 
@@ -147,7 +175,9 @@ XCOutputBlock evaluate_xc_block(const XCFunctional& functional,
     }
 
     for (const XCComponent& component : functional.components) {
-        if (functional.requirements.needs_sigma) {
+        if (functional.requirements.needs_tau) {
+            accumulate_mgga_component(component, input, output);
+        } else if (functional.requirements.needs_sigma) {
             accumulate_gga_component(component, input, output);
         } else {
             accumulate_lda_component(component, input, output);
