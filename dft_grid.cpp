@@ -1,5 +1,5 @@
 #include "dft_grid.hpp"
-#include "lebedev_grid.hpp"
+#include "lebedev_grid_high_order.hpp"
 #include <cmath>
 #include <iostream>
 #include <sstream>
@@ -39,7 +39,7 @@ double becke_smooth(double mu, int order) {
 
 
 std::vector<AngularGridPoint> make_angular_grid(int angular_grid) {
-    const auto lebedev_points = lebedev::make_lebedev_grid(
+    const auto lebedev_points = lebedev::make_lebedev_grid_extended(
         angular_grid,
         true  // weights sum to 4*pi
     );
@@ -219,54 +219,31 @@ double becke_partition_weight(const std::vector<libint2::Atom>& atoms,
                 throw std::runtime_error("two atoms are too close in Becke partition");
             }
 
-            double mu = (dist[A] - dist[B]) / RAB;
-            mu = clamp_value(mu, -1.0, 1.0);
-
-            const double f = becke_smooth(mu, smooth_order);
-
-            // s_AB = 1 near A, 0 near B.
-            const double sAB = 0.5 * (1.0 - f);
-
-            pA *= sAB;
+            const double rA = dist[A];
+            const double rB = dist[B];
+            const double mu = (rA - rB) / RAB;
+            const double s = becke_smooth(mu, smooth_order);
+            pA *= 0.5 * (1.0 - s);
         }
 
         cell[A] = pA;
     }
 
     double denom = 0.0;
-    for (double v : cell) {
-        denom += v;
+    for (double p : cell) {
+        denom += p;
     }
 
     if (!(denom > 0.0) || !std::isfinite(denom)) {
-        throw std::runtime_error("invalid Becke partition denominator");
+        // The symmetric construction can underflow in the far field for large
+        // molecules.  Fall back to a smooth distance partition so every grid
+        // point still contributes exactly once across atoms.
+        return distance_partition_weight(atoms, atom_index, r, 1.0e-12, 2.0);
     }
 
     return cell[atom_index] / denom;
 }
 
-double atom_partition_weight(const std::vector<libint2::Atom>& atoms,
-                             std::size_t atom_index,
-                             const Eigen::Vector3d& r,
-                             const AtomCenteredGridOptions& options) {
-    switch (options.partition_type) {
-        case PartitionType::Distance:
-            return distance_partition_weight(atoms,
-                                             atom_index,
-                                             r,
-                                             options.partition_eps,
-                                             options.partition_power);
-
-        case PartitionType::Becke:
-            return becke_partition_weight(atoms,
-                                          atom_index,
-                                          r,
-                                          options.becke_smooth_order);
-
-        default:
-            throw std::runtime_error("unknown atom partition type");
-    }
-}
 
 std::vector<GridPoint>
 make_atom_centered_grid(const std::vector<libint2::Atom>& atoms,
@@ -274,76 +251,32 @@ make_atom_centered_grid(const std::vector<libint2::Atom>& atoms,
     if (atoms.empty()) {
         throw std::runtime_error("make_atom_centered_grid: empty atom list");
     }
-    if (options.partition_eps <= 0.0) {
-        throw std::runtime_error("make_atom_centered_grid: partition_eps must be positive");
-    }
-    if (options.partition_power <= 0.0) {
-        throw std::runtime_error("make_atom_centered_grid: partition_power must be positive");
-    }
-    if (options.weight_cutoff < 0.0) {
-        throw std::runtime_error("make_atom_centered_grid: weight_cutoff must be non-negative");
+    if (!lebedev::is_supported_extended(options.angular_grid)) {
+        throw std::runtime_error(
+            "make_atom_centered_grid: unsupported Lebedev angular grid size " +
+            std::to_string(options.angular_grid)
+        );
     }
 
-    const std::vector<RadialGridPoint> radial = make_radial_grid(options);
-    const std::vector<AngularGridPoint> angular =
-        make_angular_grid(options.angular_grid);
+    const auto angular = make_angular_grid(options.angular_grid);
+    const auto radial = make_radial_grid(options);
 
     std::vector<GridPoint> grid;
-    grid.reserve(atoms.size() * radial.size() * angular.size());
-
-    double weight_sum = 0.0;
+    grid.reserve(atoms.size() * angular.size() * radial.size());
 
     for (std::size_t A = 0; A < atoms.size(); ++A) {
         const Eigen::Vector3d RA = atom_position(atoms[A]);
-
-        for (const RadialGridPoint& rg : radial) {
-            const double r_shell = rg.r;
-
-            for (const AngularGridPoint& ag : angular) {
-                const Eigen::Vector3d r = RA + r_shell * ag.u;
-
-                const double P_A =
-                    atom_partition_weight(atoms,
-                                          A,
-                                          r,
-                                          options);
-
-                // Spherical volume element:
-                //
-                //   d^3r = r^2 dr dOmega
-                //
-                // Therefore:
-                //
-                //   w_raw = w_rad_i * r_i^2 * w_ang_k
-                //   w     = P_A(r) * w_raw
-                const double w_raw = rg.w_rad * r_shell * r_shell * ag.w;
-                const double w = P_A * w_raw;
-
-                if (!std::isfinite(w)) {
-                    throw std::runtime_error("make_atom_centered_grid: non-finite final weight");
-                }
-
-                if (std::abs(w) > options.weight_cutoff) {
-                    grid.push_back(GridPoint{r, w});
-                    weight_sum += w;
-                }
+        for (const auto& rg : radial) {
+            const double r2 = rg.r * rg.r;
+            for (const auto& ag : angular) {
+                GridPoint gp;
+                gp.r = RA + rg.r * ag.u;
+                const double w_raw = rg.w_rad * r2 * ag.w;
+                const double pA = becke_partition_weight(atoms, A, gp.r, options.becke_smooth_order);
+                gp.w = w_raw * pA;
+                grid.push_back(gp);
             }
         }
-    }
-
-    if (options.verbose) {
-        std::cout << "Atom-centered grid:\n"
-                  << "  atoms        = " << atoms.size() << "\n"
-                  << "  n_radial     = " << options.n_radial << "\n"
-                  << "  angular_grid = " << options.angular_grid << "\n"
-                  << "  r_max        = " << options.r_max << " bohr\n"
-                  << "  radial_power = " << options.radial_power << "\n"
-                  << "  part_power   = " << options.partition_power << "\n"
-                  << "  total points = " << grid.size() << "\n"
-                  << "  sum weights  = " << weight_sum << " bohr^3\n\n"
-                  << "  partition    = "
-                  << (options.partition_type == PartitionType::Becke ? "Becke" : "Distance")
-                  << "\n";
     }
 
     return grid;
