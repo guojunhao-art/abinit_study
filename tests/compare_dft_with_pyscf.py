@@ -4,9 +4,13 @@
 This script is intentionally optional.  It requires PySCF and is not enabled in
 CTest unless MINIQC_ENABLE_PYSCF_TESTS=ON is passed to CMake.
 
-The comparison tolerance is deliberately loose by default because miniqc uses a
-small educational atom-centered grid and its purpose here is to catch major
-implementation mistakes such as missing hybrid exchange or factor-of-two errors.
+The comparison is designed as a numerical implementation check for the DFT path:
+
+    config -> XCFunctional -> XCEvaluator -> dft_xc_matrix -> run_rks_xc
+
+For H2/STO-3G, a sufficiently dense miniqc grid reproduces PySCF PBE/B3LYP/PBE0
+energies to around 1e-10 Ha in the tested environment.  The default tolerance is
+kept at 1e-6 Ha to avoid overfitting to a specific Libxc/PySCF/BLAS build.
 """
 
 from __future__ import annotations
@@ -43,7 +47,14 @@ def parse_energy_from_miniqc_output(text: str) -> float:
     return float(matches[-1])
 
 
-def write_miniqc_input(path: Path, functional: str, xyz_name: str) -> None:
+def write_miniqc_input(
+    path: Path,
+    functional: str,
+    xyz_name: str,
+    n_radial: int,
+    angular_grid: int,
+    r_max: float,
+) -> None:
     path.write_text(
         f"""[molecule]
 basis = sto-3g
@@ -69,25 +80,32 @@ use_diis = true
 
 [dft]
 functional = {functional}
-n_radial = 40
-angular_grid = 26
-r_max = 10.0
+n_radial = {n_radial}
+angular_grid = {angular_grid}
+r_max = {r_max}
 radial_power = 2.0
 density_mixing = 0.25
 max_iter = 128
-e_conv = 1.0e-8
-d_conv = 1.0e-6
+e_conv = 1.0e-10
+d_conv = 1.0e-8
 verbose = false
 """,
         encoding="utf-8",
     )
 
 
-def run_miniqc(exe: Path, workdir: Path, functional: str) -> float:
+def run_miniqc(
+    exe: Path,
+    workdir: Path,
+    functional: str,
+    n_radial: int,
+    angular_grid: int,
+    r_max: float,
+) -> float:
     xyz = workdir / "h2_1p4_bohr.xyz"
     xyz.write_text(H2_XYZ, encoding="utf-8")
     inp = workdir / f"h2_{functional}.in"
-    write_miniqc_input(inp, functional, xyz.name)
+    write_miniqc_input(inp, functional, xyz.name, n_radial, angular_grid, r_max)
 
     completed = subprocess.run(
         [str(exe), str(inp)],
@@ -120,12 +138,16 @@ def run_pyscf(functional: str) -> float:
     mol.basis = "sto-3g"
     mol.charge = 0
     mol.spin = 0
+    # miniqc currently sets Libint basis shells to Cartesian form.  Keep the
+    # PySCF reference in the same convention so later p/d-shell tests compare
+    # the same AO basis representation.
+    mol.cart = True
     mol.build()
 
     mf = dft.RKS(mol)
     mf.xc = PYSCF_XC_NAME[functional]
     mf.grids.level = 5
-    mf.conv_tol = 1.0e-10
+    mf.conv_tol = 1.0e-12
     mf.max_cycle = 100
     energy = mf.kernel()
     if not mf.converged:
@@ -133,16 +155,30 @@ def run_pyscf(functional: str) -> float:
     return float(energy)
 
 
-def compare(functionals: Iterable[str], exe: Path, workdir: Path, tolerance: float) -> None:
+def compare(
+    functionals: Iterable[str],
+    exe: Path,
+    workdir: Path,
+    tolerance: float,
+    n_radial: int,
+    angular_grid: int,
+    r_max: float,
+) -> None:
     workdir.mkdir(parents=True, exist_ok=True)
     failures: list[str] = []
+
+    print(
+        "miniqc grid: "
+        f"n_radial = {n_radial}, angular_grid = {angular_grid}, r_max = {r_max} bohr"
+    )
+    print(f"absolute tolerance = {tolerance:.3e} Ha")
 
     for functional in functionals:
         key = functional.lower()
         if key not in PYSCF_XC_NAME:
             raise RuntimeError(f"unsupported functional for PySCF comparison: {functional}")
 
-        miniqc_energy = run_miniqc(exe, workdir, key)
+        miniqc_energy = run_miniqc(exe, workdir, key, n_radial, angular_grid, r_max)
         pyscf_energy = run_pyscf(key)
         diff = miniqc_energy - pyscf_energy
 
@@ -173,12 +209,38 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--tolerance",
         type=float,
-        default=5.0e-2,
+        default=1.0e-6,
         help="Absolute energy tolerance in Hartree.",
+    )
+    parser.add_argument(
+        "--n-radial",
+        type=int,
+        default=200,
+        help="miniqc atom-centered radial grid size.",
+    )
+    parser.add_argument(
+        "--angular-grid",
+        type=int,
+        default=302,
+        help="miniqc Lebedev angular grid size.",
+    )
+    parser.add_argument(
+        "--r-max",
+        type=float,
+        default=10.0,
+        help="miniqc radial grid cutoff in bohr.",
     )
     args = parser.parse_args(argv)
 
-    compare(args.functionals, args.miniqc_exe, args.workdir, args.tolerance)
+    compare(
+        args.functionals,
+        args.miniqc_exe,
+        args.workdir,
+        args.tolerance,
+        args.n_radial,
+        args.angular_grid,
+        args.r_max,
+    )
     print("PySCF DFT reference comparison passed")
     return 0
 
