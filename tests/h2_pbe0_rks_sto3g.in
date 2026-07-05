@@ -1,0 +1,33 @@
+[molecule]
+basis = sto-3g
+xyz = h2_1p4_bohr.xyz
+unit = bohr
+charge = 0
+multiplicity = 1
+
+[calculation]
+job = single_point
+mp2 = false
+dft = true
+
+[output]
+print_orbitals = false
+print_gradient = false
+print_matrices = false
+
+[scf]
+verbose = false
+max_iter = 64
+use_diis = true
+
+[dft]
+functional = pbe0
+n_radial = 8
+angular_grid = 6
+r_max = 6.0
+radial_power = 2.0
+density_mixing = 0.2
+max_iter = 3
+e_conv = 1.0e-8
+d_conv = 1.0e-6
+verbose = false

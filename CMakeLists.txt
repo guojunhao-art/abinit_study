@@ -7,9 +7,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(MINIQC_BUILD_TESTING "Build and register miniqc regression tests" ON)
+option(MINIQC_ENABLE_PYSCF_TESTS "Enable optional PySCF numerical reference tests" OFF)
 
 find_package(Eigen3 REQUIRED)
 find_package(OpenMP QUIET)
+
+if(MINIQC_ENABLE_PYSCF_TESTS)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+endif()
 
 # Libint2 and Libxc are often installed through conda-forge.  The explicit
 # find_path/find_library fallback keeps this CMakeLists.txt usable even when
@@ -251,6 +256,42 @@ if(MINIQC_BUILD_TESTING)
             ENVIRONMENT "OMP_NUM_THREADS=1"
             PASS_REGULAR_EXPRESSION "=== RKS/DFT result ==="
         )
+
+        add_test(
+            NAME miniqc_h2_b3lyp_rks_sto3g
+            COMMAND $<TARGET_FILE:RHF> ${CMAKE_CURRENT_SOURCE_DIR}/tests/h2_b3lyp_rks_sto3g.in
+        )
+        set_tests_properties(miniqc_h2_b3lyp_rks_sto3g PROPERTIES
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/data
+            ENVIRONMENT "OMP_NUM_THREADS=1"
+            PASS_REGULAR_EXPRESSION "=== RKS/DFT result ==="
+        )
+
+        add_test(
+            NAME miniqc_h2_pbe0_rks_sto3g
+            COMMAND $<TARGET_FILE:RHF> ${CMAKE_CURRENT_SOURCE_DIR}/tests/h2_pbe0_rks_sto3g.in
+        )
+        set_tests_properties(miniqc_h2_pbe0_rks_sto3g PROPERTIES
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/data
+            ENVIRONMENT "OMP_NUM_THREADS=1"
+            PASS_REGULAR_EXPRESSION "=== RKS/DFT result ==="
+        )
+
+        if(MINIQC_ENABLE_PYSCF_TESTS)
+            add_test(
+                NAME miniqc_pyscf_dft_reference
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/compare_dft_with_pyscf.py
+                    --miniqc-exe $<TARGET_FILE:RHF>
+                    --workdir ${CMAKE_CURRENT_BINARY_DIR}/pyscf_reference_work
+                    --functionals pbe b3lyp pbe0
+                    --tolerance 5.0e-2
+            )
+            set_tests_properties(miniqc_pyscf_dft_reference PROPERTIES
+                ENVIRONMENT "OMP_NUM_THREADS=1"
+                PASS_REGULAR_EXPRESSION "PySCF DFT reference comparison passed"
+            )
+        endif()
 
         add_test(
             NAME miniqc_h2_opt_analytic_sto3g
