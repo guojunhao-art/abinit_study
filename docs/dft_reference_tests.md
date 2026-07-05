@@ -4,7 +4,7 @@ This stage adds two levels of DFT testing.
 
 ## Default smoke tests
 
-The default CTest suite now contains command-line, config-driven RKS tests for:
+The default CTest suite contains command-line, config-driven RKS tests for:
 
 - `pbe`
 - `b3lyp`
@@ -51,22 +51,49 @@ This requires PySCF in the Python environment used by CMake:
 python -c "import pyscf; print(pyscf.__version__)"
 ```
 
-## Why the tolerance is loose
+## Cartesian AO convention
 
-The CTest registration currently uses an absolute tolerance of `5.0e-2 Ha`:
+miniqc currently constructs Libint basis sets with Cartesian shells:
 
-```text
---tolerance 5.0e-2
+```cpp
+basis.set_pure(false);
 ```
 
-This is intentionally loose.  The current miniqc DFT implementation still uses an educational atom-centered grid and has not been tuned against PySCF's production-quality grids.  At this stage the reference test is meant to catch large mistakes:
+The PySCF reference script therefore sets:
+
+```python
+mol.cart = True
+```
+
+This is not important for H2/STO-3G, because the basis only contains s functions.  It becomes essential once the reference set includes p/d functions, such as water/STO-3G or water/6-31G**.
+
+## Tight H2/STO-3G reference settings
+
+For the optional reference test, CTest uses a dense miniqc atom-centered grid:
+
+```text
+--n-radial 200
+--angular-grid 302
+--tolerance 1.0e-6
+```
+
+The default script values match these settings.  In local tests with this grid, H2/STO-3G reached approximately `1e-10 Ha` agreement against PySCF for:
+
+```text
+pbe
+b3lyp
+pbe0
+```
+
+The CTest tolerance is kept at `1.0e-6 Ha` rather than `1.0e-10 Ha` to avoid overfitting to a specific Libxc/PySCF/BLAS build while still catching real implementation errors.
+
+The reference test should catch:
 
 - missing exact exchange in a hybrid functional;
 - a factor-of-two error in `K`;
 - wrong functional dispatch;
-- broken config-driven RKS path.
-
-After the grid implementation is improved, this tolerance should be tightened.
+- broken config-driven RKS path;
+- degraded grid construction.
 
 ## Manual run
 
@@ -77,12 +104,16 @@ python tests/compare_dft_with_pyscf.py \
   --miniqc-exe ./build/RHF \
   --workdir ./build/pyscf_reference_work \
   --functionals pbe b3lyp pbe0 \
-  --tolerance 5.0e-2
+  --n-radial 200 \
+  --angular-grid 302 \
+  --tolerance 1.0e-6
 ```
 
 The output has the form:
 
 ```text
+miniqc grid: n_radial = 200, angular_grid = 302, r_max = 10.0 bohr
+absolute tolerance = 1.000e-06 Ha
 pbe       miniqc = ...  pyscf = ...  diff = ...
 b3lyp     miniqc = ...  pyscf = ...  diff = ...
 pbe0      miniqc = ...  pyscf = ...  diff = ...
@@ -91,4 +122,4 @@ PySCF DFT reference comparison passed
 
 ## Next validation target
 
-Once H2/STO-3G is stable, the next validation step should add small molecules with p functions, such as water/STO-3G or water/6-31G, because those cases test AO gradient ordering and the Cartesian/spherical basis convention more strongly.
+The next validation step should add small molecules with p functions, such as water/STO-3G or water/6-31G, because those cases test AO gradient ordering and the Cartesian/spherical basis convention more strongly than H2/STO-3G.
