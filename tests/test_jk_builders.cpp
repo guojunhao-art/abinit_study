@@ -45,6 +45,22 @@ int main() {
             return 1;
         }
 
+        const Eigen::MatrixXd G_hybrid_full = miniqc::build_hybrid_g_from_jk(J, K, 1.0);
+        const double hybrid_err = (G_hybrid_full - G_from_jk).norm();
+        if (!std::isfinite(hybrid_err) || hybrid_err > 1.0e-12) {
+            std::cerr << "Hybrid ax=1 convention error = " << hybrid_err << "\n";
+            libint2::finalize();
+            return 1;
+        }
+
+        const double ex_hf = miniqc::hybrid_exact_exchange_energy(D, K, 1.0);
+        const double ex_ref = -0.25 * (D.array() * K.array()).sum();
+        if (!std::isfinite(ex_hf) || std::abs(ex_hf - ex_ref) > 1.0e-12) {
+            std::cerr << "Hybrid exchange energy convention error\n";
+            libint2::finalize();
+            return 1;
+        }
+
         std::cout << "J/K builder consistency test passed\n";
         libint2::finalize();
         return 0;
