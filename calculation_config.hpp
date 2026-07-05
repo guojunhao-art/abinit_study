@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <fstream>
 #include <initializer_list>
 #include <iostream>
 #include <sstream>
@@ -73,7 +74,8 @@ struct DriverConfig {
     double ci_max_tensor_mb = 4096.0;
     std::size_t ci_n_coefficients_to_print = 12;
 
-    // Experimental DFT/RKS grid path.
+    // DFT/RKS grid path.  The driver now uses the total-Exc RKS implementation
+    // in rks_xc.cpp.  Hybrid GGA functionals are routed through the same path.
     std::size_t dft_n_radial = 80;
     int dft_angular_grid = 26;
     double dft_r_max = 12.0;
@@ -381,7 +383,8 @@ print_coefficients = false
 n_coefficients_to_print = 12
 
 [dft]
-# Experimental RKS/DFT path. functional = slater_x, lda_x, lda_x_pz81, or pbe.
+# Total-XC RKS path. Examples: slater_x, lda_x, lda_x_pz81, pbe, blyp, b3lyp, pbe0.
+# M06-2X is recognized by XCFunctional but still requires meta-GGA tau support.
 functional = pbe
 n_radial = 80
 angular_grid = 26
