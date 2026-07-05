@@ -158,20 +158,21 @@ XCFunctional make_xc_functional(const std::string& name, SpinMode spin_mode) {
 }
 
 bool is_supported_by_current_rks_driver(const XCFunctional& functional) {
-    if (functional.is_hybrid()) return false;
-    if (functional.is_meta_gga()) return false;
-    const std::string key = normalize_functional_name(functional.name);
-    return key == "slaterx" || key == "ldax" || key == "ldaxpz81" || key == "pbe";
+    if (functional.spin_mode != SpinMode::Restricted) return false;
+    if (functional.is_range_separated) return false;
+    if (functional.requirements.needs_laplacian) return false;
+    return true;
 }
 
 std::string current_rks_support_message(const XCFunctional& functional) {
     if (is_supported_by_current_rks_driver(functional)) {
-        return "supported by the current RKS driver";
+        return "supported by the current restricted total-XC RKS driver";
     }
     std::ostringstream oss;
-    oss << functional.name << " is described by XCFunctional but not yet implemented in the current RKS matrix builder.";
-    if (functional.is_hybrid()) oss << " It requires exact-exchange K[D].";
-    if (functional.requirements.needs_tau) oss << " It requires tau(r) and vtau matrix terms.";
+    oss << functional.name << " is described by XCFunctional but not yet implemented in the current RKS driver.";
+    if (functional.is_range_separated) oss << " It requires range-separated exact exchange.";
+    if (functional.requirements.needs_laplacian) oss << " It requires laplacian matrix terms.";
+    if (functional.spin_mode != SpinMode::Restricted) oss << " It requires unrestricted/spin-polarized support.";
     return oss.str();
 }
 
