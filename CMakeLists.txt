@@ -285,7 +285,9 @@ if(MINIQC_BUILD_TESTING)
                     --miniqc-exe $<TARGET_FILE:RHF>
                     --workdir ${CMAKE_CURRENT_BINARY_DIR}/pyscf_reference_work
                     --functionals pbe b3lyp pbe0
-                    --tolerance 5.0e-2
+                    --n-radial 200
+                    --angular-grid 302
+                    --tolerance 1.0e-6
             )
             set_tests_properties(miniqc_pyscf_dft_reference PROPERTIES
                 ENVIRONMENT "OMP_NUM_THREADS=1"
