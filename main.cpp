@@ -17,7 +17,6 @@
 #include "mp2_v3_direct_t1.hpp"
 #include "fci.hpp"
 #include "dft_grid.hpp"
-#include "dft_lda.hpp"
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -63,21 +62,20 @@ miniqc::GeometryOptions make_geometry_options(const DriverConfig& cfg) {
     return options;
 }
 
-dft::LDAFunctional parse_dft_functional(const std::string& name) {
-    const std::string v = miniqc::lowercase_copy(miniqc::trim_copy(name));
-    if (v == "slater" || v == "slater_x" || v == "xalpha") {
-        return dft::LDAFunctional::SlaterX;
-    }
-    if (v == "lda_x" || v == "libxc_lda_x") {
-        return dft::LDAFunctional::Libxc_LDA_X;
-    }
-    if (v == "lda_x_pz81" || v == "lda_pz81" || v == "lda_pz") {
-        return dft::LDAFunctional::Libxc_LDA_X_PZ81C;
-    }
-    if (v == "pbe" || v == "gga_pbe" || v == "libxc_gga_pbe") {
-        return dft::LDAFunctional::Libxc_GGA_PBE;
-    }
-    throw std::runtime_error("unknown DFT functional: " + name);
+miniqc::rks::RKSXCOptions make_rks_xc_options(const DriverConfig& cfg) {
+    miniqc::rks::RKSXCOptions options;
+    options.max_iter = cfg.dft_max_iter;
+    options.e_conv = cfg.dft_e_conv;
+    options.d_conv = cfg.dft_d_conv;
+    options.density_mixing = cfg.dft_density_mixing;
+    options.verbose = cfg.dft_verbose;
+
+    // The DFT section has not yet grown its own DIIS keys, so reuse the SCF
+    // DIIS controls for now.
+    options.use_diis = cfg.scf_use_diis;
+    options.diis_start = cfg.scf_diis_start;
+    options.diis_max_vecs = cfg.scf_diis_max_vec;
+    return options;
 }
 
 int ci_func_code(CIType type) {
@@ -357,35 +355,29 @@ void run_dft(const Molecule& mol,
     grid_options.verbose = cfg.dft_verbose;
 
     const auto grid = dft::make_atom_centered_grid(mol.atoms, grid_options);
-
-    dft::RKSLDAOptions options;
-    options.max_iter = cfg.dft_max_iter;
-    options.e_conv = cfg.dft_e_conv;
-    options.d_conv = cfg.dft_d_conv;
-    options.density_mixing = cfg.dft_density_mixing;
-    options.verbose = cfg.dft_verbose;
-    options.functional = parse_dft_functional(cfg.dft_functional);
-
-    const auto rks = dft::run_rks_lda_exchange_only_sp(
+    const auto functional = miniqc::xc::make_xc_functional(cfg.dft_functional);
+    const auto rks = miniqc::rks::run_rks_xc(
         ctx.basis,
         one.S,
         one.Hcore,
         nelec,
         rhf.energy_nuclear,
         grid,
-        options
+        functional,
+        make_rks_xc_options(cfg)
     );
 
     std::cout << "\n=== RKS/DFT result ===\n";
     std::cout << std::fixed << std::setprecision(12);
-    std::cout << "functional = " << cfg.dft_functional << "\n";
-    std::cout << "converged  = " << (rks.converged ? "yes" : "no") << "\n";
-    std::cout << "niter      = " << rks.niter << "\n";
-    std::cout << "E_x        = " << rks.E_x << " Ha\n";
-    std::cout << "E_c        = " << rks.E_c << " Ha\n";
-    std::cout << "E_xc       = " << rks.E_xc << " Ha\n";
-    std::cout << "Ne(grid)   = " << rks.Ne_grid << "\n";
-    std::cout << "E_total    = " << rks.E_total << " Ha\n";
+    std::cout << "functional       = " << functional.name << "\n";
+    std::cout << "converged        = " << (rks.converged ? "yes" : "no") << "\n";
+    std::cout << "niter            = " << rks.niter << "\n";
+    std::cout << "E_one            = " << rks.E_one << " Ha\n";
+    std::cout << "E_coulomb        = " << rks.E_coulomb << " Ha\n";
+    std::cout << "E_xc_semilocal   = " << rks.E_xc << " Ha\n";
+    std::cout << "E_exact_exchange = " << rks.E_exact_exchange << " Ha\n";
+    std::cout << "Ne(grid)         = " << rks.Ne_grid << "\n";
+    std::cout << "E_total          = " << rks.E_total << " Ha\n";
 }
 
 void run_single_point(const Molecule& mol, const DriverConfig& cfg) {
