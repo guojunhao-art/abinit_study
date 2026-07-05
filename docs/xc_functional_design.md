@@ -1,6 +1,6 @@
 # XCFunctional design notes
 
-This stage introduces an `XCFunctional` descriptor layer.  It is not yet a full B3LYP/M06-2X implementation.  Its purpose is to make the next DFT steps explicit and avoid adding more hard-coded branches inside the current RKS driver.
+This stage introduces an `XCFunctional` descriptor layer.  It is not yet a full M06-2X implementation.  Its purpose is to make the next DFT steps explicit and avoid adding more hard-coded branches inside the current RKS driver.
 
 ## Layering
 
@@ -16,8 +16,6 @@ XCEvaluator
 RKS / UKS driver
   builds J, optional K, Vxc, diagonalizes the KS Fock matrix, runs DIIS
 ```
-
-The current PR adds the first layer only.
 
 ## Functional families
 
@@ -71,32 +69,42 @@ For pure RKS:
 F = H^{core} + J[D] + V_{xc}[D].
 ```
 
-For a full-range hybrid functional:
+The code uses a spin-summed closed-shell density matrix,
 
 ```math
-F = H^{core} + J[D] + V_{xc}[D] - a_x K[D].
+D_{\mu\nu}=2\sum_i^{occ}C_{\mu i}C_{\nu i}.
 ```
 
-The direct two-electron helper layer now exposes explicit `J` and `K` builders:
+With this convention, a full-range hybrid functional uses
+
+```math
+F = H^{core} + J[D] + V_{xc}[D] - \frac{1}{2}a_x K[D].
+```
+
+The helper layer exposes explicit `J` and `K` builders:
 
 ```cpp
 build_j_direct(basis, D);
 build_k_direct(basis, D);
 ```
 
-RHF can still use
+RHF uses
 
 ```math
 G^{RHF} = J - \frac{1}{2}K.
 ```
 
-Hybrid DFT will use
+Hybrid DFT uses
 
 ```math
-G^{hybrid} = J - a_xK.
+G^{hybrid} = J - \frac{1}{2}a_xK.
 ```
 
-The old `build_g_direct()` RHF helper is still kept because it computes `J - 1/2 K` in one shell loop and avoids slowing down existing RHF calculations.
+The exact-exchange energy contribution is
+
+```math
+E_x^{HF,hyb}=-\frac{1}{4}a_x\operatorname{Tr}[DK].
+```
 
 ## M06-2X and tau
 
@@ -116,15 +124,11 @@ with the prefactor kept consistent with the definition of the spin-summed densit
 
 ## Current support boundary
 
-The current RKS code still supports only the old matrix builder path:
+The new total-XC RKS driver can handle closed-shell restricted LDA/GGA and full-range hybrid-GGA functionals whose semilocal Libxc part is supported by `XCEvaluator`.
 
-- Slater exchange.
-- LDA_X.
-- LDA_X + PZ81 correlation.
-- PBE.
+Still missing:
 
-B3LYP, PBE0, and M06-2X are now describable by `XCFunctional`, but they still require the next implementation steps:
-
-1. Refactor the RKS driver to assemble hybrid generalized-KS Fock matrices.
-2. Add an `XCEvaluator` that handles LDA/GGA/meta-GGA ingredients uniformly.
-3. Add tau and vtau terms for meta-GGA functionals.
+1. connect the new `run_rks_xc()` path to the user-facing config driver;
+2. add stronger numerical regression tests against PySCF or another reference;
+3. add tau and vtau terms for meta-GGA functionals such as M06-2X;
+4. add unrestricted UKS/UHF later.
