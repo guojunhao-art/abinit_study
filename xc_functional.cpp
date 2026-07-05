@@ -146,10 +146,19 @@ XCFunctional make_xc_functional(const std::string& name, SpinMode spin_mode) {
         f.family = XCFamily::HybridMGGA;
         set_meta_gga_requirements(f);
         f.exact_exchange_fraction = 0.54;
-#ifdef XC_HYB_MGGA_XC_M06_2X
+#if defined(XC_HYB_MGGA_X_M06_2X) && defined(XC_MGGA_C_M06_2X)
+        // Many Libxc versions provide M06-2X as separate exchange and
+        // correlation components, not as a combined XC_HYB_MGGA_XC_* macro.
+        // The hybrid exchange component supplies the semilocal M06-2X exchange
+        // part; exact exchange is still added explicitly by the RKS driver via
+        // exact_exchange_fraction.
+        f.components.push_back(component(XC_HYB_MGGA_X_M06_2X, 1.0, "XC_HYB_MGGA_X_M06_2X"));
+        f.components.push_back(component(XC_MGGA_C_M06_2X, 1.0, "XC_MGGA_C_M06_2X"));
+#elif defined(XC_HYB_MGGA_XC_M06_2X)
         f.components.push_back(component(XC_HYB_MGGA_XC_M06_2X, 1.0, "XC_HYB_MGGA_XC_M06_2X"));
 #else
-        throw std::runtime_error("Libxc macro XC_HYB_MGGA_XC_M06_2X is unavailable");
+        throw std::runtime_error(
+            "Libxc M06-2X macros are unavailable; expected XC_HYB_MGGA_X_M06_2X plus XC_MGGA_C_M06_2X");
 #endif
         return f;
     }
