@@ -1,6 +1,8 @@
 #include "xc_evaluator.hpp"
 #include "xc_functional.hpp"
 
+#include <xc_funcs.h>
+
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -47,7 +49,7 @@ void check_pbe_block() {
     }
 }
 
-void check_meta_gga_rejected() {
+void check_meta_gga_tau_if_available() {
 #ifdef XC_HYB_MGGA_XC_M06_2X
     const auto m062x = miniqc::xc::make_xc_functional("m06-2x");
 
@@ -56,13 +58,13 @@ void check_meta_gga_rejected() {
     in.sigma = 0.01;
     in.tau = 0.2;
 
-    bool threw = false;
-    try {
-        (void)miniqc::xc::evaluate_xc_point(m062x, in);
-    } catch (const std::runtime_error&) {
-        threw = true;
-    }
-    require(threw, "M06-2X should be rejected until tau/meta-GGA evaluator is implemented");
+    const auto out = miniqc::xc::evaluate_xc_point(m062x, in);
+    require_finite(out.exc, "M06-2X exc should be finite");
+    require_finite(out.vrho, "M06-2X vrho should be finite");
+    require_finite(out.vsigma, "M06-2X vsigma should be finite");
+    require_finite(out.vtau, "M06-2X vtau should be finite");
+#else
+    std::cout << "Skipping M06-2X tau evaluator check: XC_HYB_MGGA_XC_M06_2X is unavailable.\n";
 #endif
 }
 
@@ -71,7 +73,7 @@ void check_meta_gga_rejected() {
 int main() {
     check_lda_point();
     check_pbe_block();
-    check_meta_gga_rejected();
+    check_meta_gga_tau_if_available();
     std::cout << "XCEvaluator smoke test passed\n";
     return 0;
 }

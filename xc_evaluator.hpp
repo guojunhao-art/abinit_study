@@ -19,7 +19,7 @@ struct XCOutputPoint {
     // contribution at a grid point is w * rho * exc.
     double exc = 0.0;
 
-    // First derivatives of eps/rho convention as returned by Libxc.
+    // First derivatives of rho * eps_xc with respect to Libxc ingredients.
     double vrho = 0.0;
     double vsigma = 0.0;
     double vlaplacian = 0.0;
@@ -55,10 +55,10 @@ XCOutputPoint evaluate_xc_point(const XCFunctional& functional,
 // Current scope:
 //   - LDA: needs rho.
 //   - GGA / HybridGGA: needs rho and sigma.
+//   - meta-GGA / HybridMGGA: needs rho, sigma, and tau.
 //
-// Meta-GGA support is intentionally not implemented here yet; M06-2X is
-// described by XCFunctional but still requires tau and vtau support in the
-// future evaluator/RKS matrix builder.
+// Laplacian-dependent functionals are still rejected because the AO-grid matrix
+// builder does not yet implement vlaplacian terms.
 XCOutputBlock evaluate_xc_block(const XCFunctional& functional,
                                 const XCInputBlock& input);
 

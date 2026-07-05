@@ -38,8 +38,8 @@ void validate_inputs(const libint2::BasisSet& basis,
     if (functional.is_range_separated) {
         throw std::runtime_error("run_rks_xc: range-separated hybrids are not implemented yet");
     }
-    if (functional.is_meta_gga()) {
-        throw std::runtime_error("run_rks_xc: meta-GGA tau/vtau support is not implemented yet");
+    if (functional.requirements.needs_laplacian) {
+        throw std::runtime_error("run_rks_xc: laplacian-dependent meta-GGA functionals are not implemented yet");
     }
     if (options.max_iter <= 0) {
         throw std::runtime_error("run_rks_xc: max_iter must be positive");
@@ -92,6 +92,7 @@ RKSXCResult run_rks_xc(const libint2::BasisSet& basis,
     if (options.verbose) {
         std::cout << "\n=== Total-XC RKS SCF ===\n"
                   << "functional = " << functional.name << "\n"
+                  << "family     = " << xc::to_string(functional.family) << "\n"
                   << "hybrid ax  = " << functional.exact_exchange_fraction << "\n"
                   << "iter          E_total              dE             dD\n";
     }
