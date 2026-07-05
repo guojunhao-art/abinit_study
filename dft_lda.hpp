@@ -20,8 +20,9 @@ struct UniformGridOptions {
     std::size_t max_points = 20000000;
 };
 
-// Historical name kept to minimize changes in main.cpp.
-// The enum now includes both LDA and GGA choices.
+// Historical enum used by legacy XC matrix helper tests and compatibility
+// wrappers.  New user-facing DFT calculations should use miniqc::xc::XCFunctional
+// and miniqc::rks::run_rks_xc().
 enum class LDAFunctional {
     // Hand-written Slater exchange, useful for learning and debugging.
     SlaterX,
@@ -64,45 +65,6 @@ struct DensityGradPoint {
     double rho = 0.0;
     Eigen::Vector3d grad_rho = Eigen::Vector3d::Zero();
     double sigma = 0.0;  // |grad rho|^2 for unpolarized RKS GGA
-};
-
-struct RKSLDAOptions {
-    int max_iter = 128;
-    double e_conv = 1.0e-10;
-    double d_conv = 1.0e-8;
-
-    // Density damping. Usually keep this at 0.0 when DIIS is enabled.
-    // If SCF oscillates badly, use a small value such as 0.1--0.3
-    // and/or delay DIIS by increasing diis_start.
-    double density_mixing = 0.0;
-
-    // Pulay DIIS for the Kohn-Sham Fock matrix.
-    bool use_diis = true;
-    int diis_start = 2;
-    std::size_t diis_max_vecs = 8;
-
-    // XC functional used in the RKS driver.
-    LDAFunctional functional = LDAFunctional::SlaterX;
-
-    bool verbose = true;
-};
-
-struct RKSLDAResult {
-    bool converged = false;
-    int niter = 0;
-
-    double E_total = 0.0;
-    double E_elec = 0.0;
-    double E_x = 0.0;
-    double E_c = 0.0;
-    double E_xc = 0.0;
-    double E_nuc = 0.0;
-    double Ne_grid = 0.0;
-
-    Eigen::VectorXd eps;
-    Eigen::MatrixXd C;
-    Eigen::MatrixXd D;
-    Eigen::MatrixXd F;
 };
 
 // Simple uniform Cartesian grid for the first educational implementation.
@@ -161,14 +123,15 @@ check_density_gradient_finite_difference(const libint2::BasisSet& basis,
                                          double h = 1.0e-5,
                                          bool verbose = true);
 
-// Build hand-written LDA Slater exchange-only energy and Vx matrix.
+// Legacy semilocal XC matrix helpers kept temporarily for regression tests and
+// for comparison against the new XCEvaluator-backed matrix builder.  They no
+// longer own an SCF driver.
 LDAExchangeResult
 build_lda_exchange_only_sp(const libint2::BasisSet& basis,
                            const Eigen::MatrixXd& D,
                            const std::vector<GridPoint>& grid,
                            double rho_cutoff = 1.0e-14);
 
-// Build LDA exchange-correlation through Libxc.
 LDAExchangeResult
 build_lda_libxc_sp(const libint2::BasisSet& basis,
                    const Eigen::MatrixXd& D,
@@ -176,8 +139,6 @@ build_lda_libxc_sp(const libint2::BasisSet& basis,
                    LDAFunctional functional,
                    double rho_cutoff = 1.0e-14);
 
-// Build GGA exchange-correlation through Libxc.
-// Currently supports LDAFunctional::Libxc_GGA_PBE.
 LDAExchangeResult
 build_gga_libxc_sp(const libint2::BasisSet& basis,
                    const Eigen::MatrixXd& D,
@@ -185,8 +146,6 @@ build_gga_libxc_sp(const libint2::BasisSet& basis,
                    LDAFunctional functional,
                    double rho_cutoff = 1.0e-14);
 
-// Uniform entry point used by the SCF driver. SlaterX uses the hand-written
-// educational implementation; Libxc_* choices use Libxc.
 LDAExchangeResult
 build_lda_xc_sp(const libint2::BasisSet& basis,
                 const Eigen::MatrixXd& D,
@@ -194,22 +153,11 @@ build_lda_xc_sp(const libint2::BasisSet& basis,
                 LDAFunctional functional,
                 double rho_cutoff = 1.0e-14);
 
-// Coulomb matrix only:
-//   J_mn = sum_ls D_ls (mn|ls)
+// Legacy Coulomb helper in namespace dft.  New code should prefer
+// miniqc::build_j_direct() from two_body_fock.hpp.
 Eigen::MatrixXd
 build_j_direct(const libint2::BasisSet& basis,
                const Eigen::MatrixXd& D);
-
-// RKS SCF driver.
-// The historical function name is kept, but it now also supports Libxc GGA PBE.
-RKSLDAResult
-run_rks_lda_exchange_only_sp(const libint2::BasisSet& basis,
-                             const Eigen::MatrixXd& S,
-                             const Eigen::MatrixXd& Hcore,
-                             int nelec,
-                             double Enuc,
-                             const std::vector<GridPoint>& grid,
-                             const RKSLDAOptions& options = {});
 
 double trace_product(const Eigen::MatrixXd& A,
                      const Eigen::MatrixXd& B);
