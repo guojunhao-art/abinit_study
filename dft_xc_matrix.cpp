@@ -29,12 +29,30 @@ void accumulate_lda_point(const Eigen::VectorXd& phi,
     result.Vxc.noalias() += weight * xc.vrho * (phi * phi.transpose());
 }
 
-void accumulate_gga_point(const AOValuesGrad& ao,
-                          const DensityGradPoint& den,
-                          double weight,
-                          double rho,
-                          const miniqc::xc::XCOutputPoint& xc,
-                          LDAExchangeResult& result) {
+double kinetic_energy_density_tau(const AOValuesGrad& ao,
+                                  const Eigen::MatrixXd& D) {
+    // The code uses spin-summed closed-shell D = 2 sum_i C_i C_i^T.
+    // Libxc's restricted meta-GGA tau convention is
+    //   tau = 1/2 sum_mn D_mn grad chi_m . grad chi_n.
+    const Eigen::VectorXd Ddx = D * ao.dphidx;
+    const Eigen::VectorXd Ddy = D * ao.dphidy;
+    const Eigen::VectorXd Ddz = D * ao.dphidz;
+    return 0.5 * (ao.dphidx.dot(Ddx) + ao.dphidy.dot(Ddy) + ao.dphidz.dot(Ddz));
+}
+
+Eigen::MatrixXd tau_derivative_matrix(const AOValuesGrad& ao) {
+    return ao.dphidx * ao.dphidx.transpose()
+         + ao.dphidy * ao.dphidy.transpose()
+         + ao.dphidz * ao.dphidz.transpose();
+}
+
+void accumulate_gradient_point(const AOValuesGrad& ao,
+                               const DensityGradPoint& den,
+                               double weight,
+                               double rho,
+                               const miniqc::xc::XCOutputPoint& xc,
+                               bool include_tau,
+                               LDAExchangeResult& result) {
     const Eigen::VectorXd& phi = ao.phi;
     const Eigen::MatrixXd phiphi = phi * phi.transpose();
 
@@ -49,6 +67,12 @@ void accumulate_gga_point(const AOValuesGrad& ao,
     result.Exc += weight * rho * xc.exc;
     result.Vxc.noalias() += weight * xc.vrho * phiphi;
     result.Vxc.noalias() += weight * 2.0 * xc.vsigma * grad_term;
+
+    if (include_tau) {
+        // Since tau = 1/2 D_mn grad_m . grad_n, the Fock contribution is
+        // 1/2 * w * vtau * grad_m . grad_n.
+        result.Vxc.noalias() += weight * 0.5 * xc.vtau * tau_derivative_matrix(ao);
+    }
 }
 
 }  // namespace
@@ -65,9 +89,9 @@ build_xc_matrix_with_evaluator_sp(const libint2::BasisSet& basis,
         throw std::runtime_error(
             "build_xc_matrix_with_evaluator_sp: only restricted XC functionals are implemented");
     }
-    if (functional.is_meta_gga()) {
+    if (functional.requirements.needs_laplacian) {
         throw std::runtime_error(
-            "build_xc_matrix_with_evaluator_sp: meta-GGA tau/vtau matrix terms are not implemented yet");
+            "build_xc_matrix_with_evaluator_sp: laplacian-dependent functionals are not implemented yet");
     }
 
     const int nbf = static_cast<int>(basis.nbf());
@@ -78,7 +102,7 @@ build_xc_matrix_with_evaluator_sp(const libint2::BasisSet& basis,
     result.Vxc = Eigen::MatrixXd::Zero(nbf, nbf);
 
     for (const GridPoint& gp : grid) {
-        if (functional.requirements.needs_sigma) {
+        if (functional.requirements.needs_sigma || functional.requirements.needs_tau) {
             const AOValuesGrad ao = eval_ao_values_grad(basis, gp.r);
             DensityGradPoint den = eval_density_gradient(D, ao);
 
@@ -91,10 +115,14 @@ build_xc_matrix_with_evaluator_sp(const libint2::BasisSet& basis,
             miniqc::xc::XCInputPoint input;
             input.rho = rho;
             input.sigma = den.sigma;
+            if (functional.requirements.needs_tau) {
+                input.tau = std::max(0.0, kinetic_energy_density_tau(ao, D));
+            }
             const miniqc::xc::XCOutputPoint xc =
                 miniqc::xc::evaluate_xc_point(functional, input);
 
-            accumulate_gga_point(ao, den, gp.w, rho, xc, result);
+            accumulate_gradient_point(ao, den, gp.w, rho, xc,
+                                      functional.requirements.needs_tau, result);
 
             result.Ne_grid += gp.w * rho;
             result.rho_max = std::max(result.rho_max, rho);
