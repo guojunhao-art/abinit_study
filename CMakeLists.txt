@@ -183,6 +183,18 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(test_jk_builders PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
+add_executable(test_lebedev_grid
+    tests/test_lebedev_grid.cpp
+)
+
+target_include_directories(test_lebedev_grid PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(test_lebedev_grid PRIVATE
+    Eigen3::Eigen
+)
+
 if(MINIQC_BUILD_TESTING)
     include(CTest)
     if(BUILD_TESTING)
@@ -235,6 +247,14 @@ if(MINIQC_BUILD_TESTING)
         set_tests_properties(miniqc_jk_builder_consistency PROPERTIES
             ENVIRONMENT "OMP_NUM_THREADS=1"
             PASS_REGULAR_EXPRESSION "J/K builder consistency test passed"
+        )
+
+        add_test(
+            NAME miniqc_lebedev_grid
+            COMMAND $<TARGET_FILE:test_lebedev_grid>
+        )
+        set_tests_properties(miniqc_lebedev_grid PROPERTIES
+            PASS_REGULAR_EXPRESSION "Lebedev grid test passed"
         )
 
         add_test(
