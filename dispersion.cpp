@@ -53,7 +53,7 @@ DispersionMethod parse_dispersion_method(const std::string& name) {
     if (key.empty() || key == "none" || key == "off" || key == "false" || key == "0") {
         return DispersionMethod::None;
     }
-    if (key == "d2" || key == "grimme2" || key == "grimme_d2" || key == "dftd2") {
+    if (key == "d2" || key == "grimme2" || key == "grimmed2" || key == "dftd2") {
         return DispersionMethod::D2;
     }
     throw std::runtime_error("unknown dispersion correction method: " + name);
