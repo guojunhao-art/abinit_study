@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import re
 import subprocess
 import sys
@@ -178,10 +179,19 @@ def parse_result(text: str) -> MiniQCDFTResult:
     )
 
 
-def run_miniqc(exe: Path, inp_name: str, workdir: Path) -> MiniQCDFTResult:
+def run_miniqc(exe: Path, inp_name: str, workdir: Path, omp_num_threads: int) -> MiniQCDFTResult:
+    env = os.environ.copy()
+    env["OMP_NUM_THREADS"] = str(omp_num_threads)
+    env.setdefault("OPENBLAS_NUM_THREADS", str(omp_num_threads))
+    env.setdefault("MKL_NUM_THREADS", str(omp_num_threads))
+    env.setdefault("BLIS_NUM_THREADS", str(omp_num_threads))
+    env.setdefault("VECLIB_MAXIMUM_THREADS", str(omp_num_threads))
+    env.setdefault("NUMEXPR_NUM_THREADS", str(omp_num_threads))
+
     completed = subprocess.run(
         [str(exe), inp_name],
         cwd=workdir,
+        env=env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -192,6 +202,7 @@ def run_miniqc(exe: Path, inp_name: str, workdir: Path) -> MiniQCDFTResult:
             f"miniqc failed for {inp_name} with exit code {completed.returncode}\n"
             f"Command: {exe} {inp_name}\n"
             f"Working directory: {workdir}\n"
+            f"OMP_NUM_THREADS={omp_num_threads}\n"
             f"{completed.stdout}"
         )
     return parse_result(completed.stdout)
@@ -233,7 +244,16 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--angular-grid", type=int, default=50)
     parser.add_argument("--r-max", type=float, default=12.0)
     parser.add_argument("--max-iter", type=int, default=128)
+    parser.add_argument(
+        "--omp-num-threads",
+        type=int,
+        default=1,
+        help="OMP_NUM_THREADS passed to each miniqc subprocess. Default: 1 for stable scans.",
+    )
     args = parser.parse_args(argv)
+
+    if args.omp_num_threads < 1:
+        raise ValueError("--omp-num-threads must be >= 1")
 
     distances = parse_distances(args.distances)
     exe = args.miniqc_exe.expanduser().resolve()
@@ -268,7 +288,7 @@ def main(argv: list[str]) -> int:
             args.max_iter,
         )
 
-        result = run_miniqc(exe, inp.name, workdir)
+        result = run_miniqc(exe, inp.name, workdir, args.omp_num_threads)
         rows.append({
             "model": args.model,
             "distance_angstrom": f"{distance:.6f}",
@@ -282,6 +302,7 @@ def main(argv: list[str]) -> int:
             "E_dispersion_mHa": f"{1000.0 * result.e_dispersion:.9f}",
             "Ne_grid": f"{result.ne_grid:.12f}",
             "converged": "yes" if result.converged else "no",
+            "omp_num_threads": args.omp_num_threads,
             "xyz": xyz.name,
             "input": inp.name,
         })
@@ -307,6 +328,7 @@ def main(argv: list[str]) -> int:
         "E_dispersion_mHa",
         "Ne_grid",
         "converged",
+        "omp_num_threads",
         "xyz",
         "input",
     ]
