@@ -5,6 +5,7 @@
 #include <fstream>
 #include <initializer_list>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -75,7 +76,8 @@ struct DriverConfig {
     std::size_t ci_n_coefficients_to_print = 12;
 
     // DFT/RKS grid path.  The driver now uses the total-Exc RKS implementation
-    // in rks_xc.cpp.  Hybrid GGA functionals are routed through the same path.
+    // in rks_xc.cpp.  Hybrid GGA and meta-GGA functionals are routed through
+    // the same path.
     std::size_t dft_n_radial = 80;
     int dft_angular_grid = 26;
     double dft_r_max = 12.0;
@@ -86,6 +88,13 @@ struct DriverConfig {
     double dft_d_conv = 1.0e-8;
     bool dft_verbose = true;
     std::string dft_functional = "pbe";
+
+    // Additive dispersion correction layer.  Currently supports Grimme D2 for
+    // single-point DFT energies.  NaN means use the functional-specific default
+    // parameter where available.
+    std::string dispersion_method = "none";
+    double dispersion_s6 = std::numeric_limits<double>::quiet_NaN();
+    double dispersion_damping_d = 20.0;
 };
 
 inline std::string trim_copy(std::string s) {
@@ -171,7 +180,6 @@ public:
     void set(std::string key, std::string value) {
         values_[normalize_key(std::move(key))] = trim_copy(std::move(value));
     }
-
 private:
     static std::string normalize_key(std::string key) {
         key = trim_copy(std::move(key));
@@ -322,6 +330,10 @@ inline DriverConfig load_driver_config(const std::string& filename) {
     cfg.dft_verbose = kv.get_bool({"dft.verbose"}, cfg.dft_verbose);
     cfg.dft_functional = kv.get_string({"dft.functional"}, cfg.dft_functional);
 
+    cfg.dispersion_method = kv.get_string({"dispersion.method", "dft.dispersion"}, cfg.dispersion_method);
+    cfg.dispersion_s6 = kv.get_double({"dispersion.s6", "dft.dispersion_s6"}, cfg.dispersion_s6);
+    cfg.dispersion_damping_d = kv.get_double({"dispersion.damping_d", "dispersion.d", "dft.dispersion_damping_d"}, cfg.dispersion_damping_d);
+
     if (cfg.basis_name.empty()) throw std::runtime_error("basis name cannot be empty");
     if (cfg.xyz_file.empty()) throw std::runtime_error("XYZ filename cannot be empty");
     return cfg;
@@ -383,8 +395,7 @@ print_coefficients = false
 n_coefficients_to_print = 12
 
 [dft]
-# Total-XC RKS path. Examples: slater_x, lda_x, lda_x_pz81, pbe, blyp, b3lyp, pbe0.
-# M06-2X is recognized by XCFunctional but still requires meta-GGA tau support.
+# Total-XC RKS path. Examples: slater_x, lda_x, lda_x_pz81, pbe, blyp, b3lyp, pbe0, m06-2x.
 functional = pbe
 n_radial = 80
 angular_grid = 26
@@ -395,6 +406,13 @@ max_iter = 256
 e_conv = 1.0e-10
 d_conv = 1.0e-8
 verbose = true
+
+[dispersion]
+# Additive pairwise dispersion layer. Currently supported: none, d2.
+method = none
+# s6 = auto by default. Set explicitly for functionals without a built-in D2 parameter.
+# s6 = 0.75
+# damping_d = 20.0
 )ini";
 }
 
