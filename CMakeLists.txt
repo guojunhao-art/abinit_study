@@ -207,6 +207,7 @@ target_include_directories(test_dispersion_d2 PRIVATE
 )
 
 target_link_libraries(test_dispersion_d2 PRIVATE
+    Eigen3::Eigen
     ${LIBINT2_LIBRARY}
 )
 
