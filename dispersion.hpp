@@ -2,6 +2,7 @@
 
 #include <libint2/cxxapi.h>
 
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -22,7 +23,7 @@ struct DispersionOptions {
     std::string functional;
 
     // NaN means use the functional-specific D2 default scale if available.
-    double s6 = 0.0 / 0.0;
+    double s6 = std::numeric_limits<double>::quiet_NaN();
     double damping_d = 20.0;
 };
 
