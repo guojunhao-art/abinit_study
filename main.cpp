@@ -17,6 +17,7 @@
 #include "mp2_v3_direct_t1.hpp"
 #include "fci.hpp"
 #include "dft_grid.hpp"
+#include "dispersion.hpp"
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -75,6 +76,15 @@ miniqc::rks::RKSXCOptions make_rks_xc_options(const DriverConfig& cfg) {
     options.use_diis = cfg.scf_use_diis;
     options.diis_start = cfg.scf_diis_start;
     options.diis_max_vecs = cfg.scf_diis_max_vec;
+    return options;
+}
+
+miniqc::dispersion::DispersionOptions make_dispersion_options(const DriverConfig& cfg) {
+    miniqc::dispersion::DispersionOptions options;
+    options.method = miniqc::dispersion::parse_dispersion_method(cfg.dispersion_method);
+    options.functional = cfg.dft_functional;
+    options.s6 = cfg.dispersion_s6;
+    options.damping_d = cfg.dispersion_damping_d;
     return options;
 }
 
@@ -367,6 +377,13 @@ void run_dft(const Molecule& mol,
         make_rks_xc_options(cfg)
     );
 
+    const auto dispersion = miniqc::dispersion::compute_dispersion_energy(
+        mol.atoms,
+        make_dispersion_options(cfg)
+    );
+    const bool has_dispersion = dispersion.method != miniqc::dispersion::DispersionMethod::None;
+    const double E_corrected = rks.E_total + dispersion.energy;
+
     std::cout << "\n=== RKS/DFT result ===\n";
     std::cout << std::fixed << std::setprecision(12);
     std::cout << "functional       = " << functional.name << "\n";
@@ -376,8 +393,14 @@ void run_dft(const Molecule& mol,
     std::cout << "E_coulomb        = " << rks.E_coulomb << " Ha\n";
     std::cout << "E_xc_semilocal   = " << rks.E_xc << " Ha\n";
     std::cout << "E_exact_exchange = " << rks.E_exact_exchange << " Ha\n";
+    if (has_dispersion) {
+        std::cout << "dispersion       = " << dispersion.method_label << "\n";
+        std::cout << "dispersion_s6    = " << dispersion.s6 << "\n";
+        std::cout << "E_dispersion     = " << dispersion.energy << " Ha\n";
+        std::cout << "E_KS_total       = " << rks.E_total << " Ha\n";
+    }
     std::cout << "Ne(grid)         = " << rks.Ne_grid << "\n";
-    std::cout << "E_total          = " << rks.E_total << " Ha\n";
+    std::cout << "E_total          = " << E_corrected << " Ha\n";
 }
 
 void run_single_point(const Molecule& mol, const DriverConfig& cfg) {

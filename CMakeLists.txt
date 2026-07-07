@@ -61,6 +61,7 @@ set(MINIQC_SOURCES
     rks_xc.cpp
     xc_functional.cpp
     xc_evaluator.cpp
+    dispersion.cpp
 )
 
 add_executable(RHF ${MINIQC_SOURCES})
@@ -195,6 +196,20 @@ target_link_libraries(test_lebedev_grid PRIVATE
     Eigen3::Eigen
 )
 
+add_executable(test_dispersion_d2
+    tests/test_dispersion_d2.cpp
+    dispersion.cpp
+)
+
+target_include_directories(test_dispersion_d2 PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${LIBINT2_INCLUDE_DIR}
+)
+
+target_link_libraries(test_dispersion_d2 PRIVATE
+    ${LIBINT2_LIBRARY}
+)
+
 if(MINIQC_BUILD_TESTING)
     include(CTest)
     if(BUILD_TESTING)
@@ -255,6 +270,14 @@ if(MINIQC_BUILD_TESTING)
         )
         set_tests_properties(miniqc_lebedev_grid PROPERTIES
             PASS_REGULAR_EXPRESSION "Lebedev grid test passed"
+        )
+
+        add_test(
+            NAME miniqc_dispersion_d2
+            COMMAND $<TARGET_FILE:test_dispersion_d2>
+        )
+        set_tests_properties(miniqc_dispersion_d2 PROPERTIES
+            PASS_REGULAR_EXPRESSION "D2 dispersion test passed"
         )
 
         add_test(
