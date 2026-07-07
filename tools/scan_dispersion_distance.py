@@ -178,9 +178,9 @@ def parse_result(text: str) -> MiniQCDFTResult:
     )
 
 
-def run_miniqc(exe: Path, inp: Path, workdir: Path) -> MiniQCDFTResult:
+def run_miniqc(exe: Path, inp_name: str, workdir: Path) -> MiniQCDFTResult:
     completed = subprocess.run(
-        [str(exe), str(inp)],
+        [str(exe), inp_name],
         cwd=workdir,
         text=True,
         stdout=subprocess.PIPE,
@@ -189,7 +189,9 @@ def run_miniqc(exe: Path, inp: Path, workdir: Path) -> MiniQCDFTResult:
     )
     if completed.returncode != 0:
         raise RuntimeError(
-            f"miniqc failed for {inp.name} with exit code {completed.returncode}\n"
+            f"miniqc failed for {inp_name} with exit code {completed.returncode}\n"
+            f"Command: {exe} {inp_name}\n"
+            f"Working directory: {workdir}\n"
             f"{completed.stdout}"
         )
     return parse_result(completed.stdout)
@@ -234,14 +236,21 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     distances = parse_distances(args.distances)
-    args.workdir.mkdir(parents=True, exist_ok=True)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+    exe = args.miniqc_exe.expanduser().resolve()
+    workdir = args.workdir.expanduser().resolve()
+    output = args.output.expanduser().resolve()
+
+    if not exe.exists():
+        raise FileNotFoundError(f"miniqc executable not found: {exe}")
+
+    workdir.mkdir(parents=True, exist_ok=True)
+    output.parent.mkdir(parents=True, exist_ok=True)
 
     rows: list[dict[str, object]] = []
     for distance in distances:
         tag = f"{args.model}_{distance:.3f}".replace(".", "p")
-        xyz = args.workdir / f"{tag}.xyz"
-        inp = args.workdir / f"{tag}.in"
+        xyz = workdir / f"{tag}.xyz"
+        inp = workdir / f"{tag}.in"
 
         atoms = make_dimer(args.model, distance)
         write_xyz(xyz, atoms, f"{args.model} dimer, center separation = {distance:.6f} Angstrom")
@@ -259,7 +268,7 @@ def main(argv: list[str]) -> int:
             args.max_iter,
         )
 
-        result = run_miniqc(args.miniqc_exe, inp, args.workdir)
+        result = run_miniqc(exe, inp.name, workdir)
         rows.append({
             "model": args.model,
             "distance_angstrom": f"{distance:.6f}",
@@ -301,12 +310,12 @@ def main(argv: list[str]) -> int:
         "xyz",
         "input",
     ]
-    with args.output.open("w", newline="", encoding="utf-8") as f:
+    with output.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
-    print(f"wrote {args.output}", file=sys.stderr)
+    print(f"wrote {output}", file=sys.stderr)
     return 0
 
 
