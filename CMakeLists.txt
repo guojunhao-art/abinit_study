@@ -83,7 +83,7 @@ if(OpenMP_CXX_FOUND)
 endif()
 
 # Keep the historical executable name.  The CMake target is also named RHF, so
-tests and old shell commands can use the same program name.
+# tests and old shell commands can use the same program name.
 set_target_properties(RHF PROPERTIES OUTPUT_NAME RHF)
 
 add_executable(test_xc_functional
