@@ -4,11 +4,12 @@
 //
 // The historical executable still includes several module headers directly.
 // New small drivers/tests can include this file to access the shared core,
-// integral, SCF, RHF, and XC helper layers introduced during the refactor.
+// integral, SCF, RHF, XC, and dispersion helper layers introduced during the refactor.
 
 #include "basis_context.hpp"
 #include "core_molecule.hpp"
 #include "dft_xc_matrix.hpp"
+#include "dispersion.hpp"
 #include "linalg_utils.hpp"
 #include "one_body_integrals.hpp"
 #include "periodic_table.hpp"
