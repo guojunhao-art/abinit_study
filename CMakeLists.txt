@@ -302,6 +302,16 @@ if(MINIQC_BUILD_TESTING)
         )
 
         add_test(
+            NAME miniqc_h2_pbe_d2_rks_sto3g
+            COMMAND $<TARGET_FILE:RHF> ${CMAKE_CURRENT_SOURCE_DIR}/tests/h2_pbe_d2_rks_sto3g.in
+        )
+        set_tests_properties(miniqc_h2_pbe_d2_rks_sto3g PROPERTIES
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/data
+            ENVIRONMENT "OMP_NUM_THREADS=1"
+            PASS_REGULAR_EXPRESSION "E_dispersion"
+        )
+
+        add_test(
             NAME miniqc_h2_b3lyp_rks_sto3g
             COMMAND $<TARGET_FILE:RHF> ${CMAKE_CURRENT_SOURCE_DIR}/tests/h2_b3lyp_rks_sto3g.in
         )
